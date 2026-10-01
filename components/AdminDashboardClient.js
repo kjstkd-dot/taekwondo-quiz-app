@@ -7,12 +7,161 @@ import { DISCIPLINES, DISCIPLINE_KEYS } from '../lib/disciplines';
 
 const COLORS = { gyeorugi: '#1E2761', pumsae: '#8B2E22', gyeokpa: '#1F6F4A' };
 
+const LOG_COLUMNS = [
+  {
+    key: 'created_at',
+    label: '시간',
+    display: (a) => new Date(a.created_at).toLocaleString('ko-KR'),
+    sortValue: (a) => new Date(a.created_at).getTime(),
+  },
+  { key: 'name', label: '이름', display: (a) => a.name, sortValue: (a) => a.name },
+  { key: 'student_id', label: '학번', display: (a) => a.student_id, sortValue: (a) => a.student_id },
+  {
+    key: 'discipline',
+    label: '종목',
+    display: (a) => DISCIPLINES[a.discipline]?.ko || a.discipline,
+    sortValue: (a) => DISCIPLINES[a.discipline]?.ko || a.discipline,
+  },
+  {
+    key: 'percentage',
+    label: '점수',
+    display: (a) => `${a.score}/${a.total} (${a.percentage}%)`,
+    sortValue: (a) => a.percentage,
+  },
+];
+
+function ColumnFilterMenu({ column, options, selected, onApply, onSort, activeSort, onClose }) {
+  const [search, setSearch] = useState('');
+  const [temp, setTemp] = useState(selected || new Set(options));
+
+  const visibleOptions = options.filter((o) => o.toLowerCase().includes(search.trim().toLowerCase()));
+  const allVisibleChecked = visibleOptions.length > 0 && visibleOptions.every((o) => temp.has(o));
+
+  function toggleValue(v) {
+    const next = new Set(temp);
+    if (next.has(v)) next.delete(v);
+    else next.add(v);
+    setTemp(next);
+  }
+
+  function toggleAllVisible() {
+    const next = new Set(temp);
+    if (allVisibleChecked) {
+      visibleOptions.forEach((o) => next.delete(o));
+    } else {
+      visibleOptions.forEach((o) => next.add(o));
+    }
+    setTemp(next);
+  }
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'transparent' }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          marginTop: 4,
+          zIndex: 50,
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 10,
+          boxShadow: '0 12px 28px -12px rgba(0,0,0,.35)',
+          width: 220,
+          padding: 10,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ flex: 1, fontSize: 12, padding: '6px 8px', fontWeight: activeSort?.key === column.key && activeSort?.dir === 'asc' ? 800 : 500 }}
+            onClick={() => {
+              onSort('asc');
+              onClose();
+            }}
+          >
+            ▲ 오름차순
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ flex: 1, fontSize: 12, padding: '6px 8px', fontWeight: activeSort?.key === column.key && activeSort?.dir === 'desc' ? 800 : 500 }}
+            onClick={() => {
+              onSort('desc');
+              onClose();
+            }}
+          >
+            ▼ 내림차순
+          </button>
+        </div>
+
+        <input
+          type="text"
+          placeholder="검색"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ width: '100%', marginBottom: 8, fontSize: 12, padding: '6px 8px' }}
+        />
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 6, fontWeight: 700 }}>
+          <input type="checkbox" checked={allVisibleChecked} onChange={toggleAllVisible} />
+          전체 선택
+        </label>
+
+        <div style={{ maxHeight: 180, overflowY: 'auto', borderTop: '1px solid var(--border)', paddingTop: 6 }}>
+          {visibleOptions.map((o) => (
+            <label key={o} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '3px 0' }}>
+              <input type="checkbox" checked={temp.has(o)} onChange={() => toggleValue(o)} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o}</span>
+            </label>
+          ))}
+          {visibleOptions.length === 0 && (
+            <div style={{ fontSize: 12, color: 'var(--text-mute)', padding: '4px 0' }}>일치하는 값이 없어요.</div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ flex: 1, fontSize: 12, padding: '6px 8px' }}
+            onClick={() => {
+              onApply(null);
+              onClose();
+            }}
+          >
+            초기화
+          </button>
+          <button
+            type="button"
+            className="btn"
+            style={{ flex: 1, fontSize: 12, padding: '6px 8px' }}
+            onClick={() => {
+              onApply(temp.size === options.length ? null : temp);
+              onClose();
+            }}
+          >
+            적용
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function AdminDashboardClient({ initialAttempts }) {
   const router = useRouter();
   const [attempts, setAttempts] = useState(initialAttempts || []);
   const [refreshing, setRefreshing] = useState(false);
-  const [filterDiscipline, setFilterDiscipline] = useState('all');
-  const [filterStudent, setFilterStudent] = useState('');
+  const [colFilters, setColFilters] = useState({});
+  const [sort, setSort] = useState({ key: 'created_at', dir: 'desc' });
+  const [openCol, setOpenCol] = useState(null);
 
   async function refresh() {
     setRefreshing(true);
@@ -34,14 +183,40 @@ export default function AdminDashboardClient({ initialAttempts }) {
     router.push('/admin');
   }
 
+  function rowsExcludingFilter(excludeKey) {
+    return attempts.filter((a) =>
+      LOG_COLUMNS.every((col) => {
+        if (col.key === excludeKey) return true;
+        const f = colFilters[col.key];
+        if (!f) return true;
+        return f.has(col.display(a));
+      })
+    );
+  }
+
   const filtered = useMemo(() => {
-    const needle = filterStudent.trim().toLowerCase();
-    return attempts.filter((a) => {
-      if (filterDiscipline !== 'all' && a.discipline !== filterDiscipline) return false;
-      if (needle && !`${a.name}${a.student_id}`.toLowerCase().includes(needle)) return false;
-      return true;
-    });
-  }, [attempts, filterDiscipline, filterStudent]);
+    let rows = attempts.filter((a) =>
+      LOG_COLUMNS.every((col) => {
+        const f = colFilters[col.key];
+        if (!f) return true;
+        return f.has(col.display(a));
+      })
+    );
+    if (sort.key) {
+      const col = LOG_COLUMNS.find((c) => c.key === sort.key);
+      rows = [...rows].sort((a, b) => {
+        const av = col.sortValue(a);
+        const bv = col.sortValue(b);
+        if (typeof av === 'number' && typeof bv === 'number') {
+          return sort.dir === 'asc' ? av - bv : bv - av;
+        }
+        return sort.dir === 'asc'
+          ? String(av).localeCompare(String(bv), 'ko')
+          : String(bv).localeCompare(String(av), 'ko');
+      });
+    }
+    return rows;
+  }, [attempts, colFilters, sort]);
 
   const totalAttempts = attempts.length;
   const uniqueStudents = new Set(attempts.map((a) => a.student_id)).size;
@@ -151,34 +326,59 @@ export default function AdminDashboardClient({ initialAttempts }) {
         </table>
       </div>
 
-      <div className="section-label">전체 응시 로그 (최신 300건)</div>
+      <div className="section-label">전체 응시 로그 ({filtered.length}건 / 전체 {attempts.length}건)</div>
       <div className="card">
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-          <select value={filterDiscipline} onChange={(e) => setFilterDiscipline(e.target.value)} style={{ width: 'auto' }}>
-            <option value="all">전체 종목</option>
-            {DISCIPLINE_KEYS.map((key) => (
-              <option key={key} value={key}>
-                {DISCIPLINES[key].ko}
-              </option>
-            ))}
-          </select>
-          <input
-            type="text"
-            placeholder="이름/학번 검색"
-            value={filterStudent}
-            onChange={(e) => setFilterStudent(e.target.value)}
-            style={{ width: 'auto', flex: 1, minWidth: 140 }}
-          />
-        </div>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
-                <th style={{ padding: '6px 8px' }}>시간</th>
-                <th style={{ padding: '6px 8px' }}>이름</th>
-                <th style={{ padding: '6px 8px' }}>학번</th>
-                <th style={{ padding: '6px 8px' }}>종목</th>
-                <th style={{ padding: '6px 8px' }}>점수</th>
+                {LOG_COLUMNS.map((col) => {
+                  const hasFilter = !!colFilters[col.key];
+                  const isSorted = sort.key === col.key;
+                  const options = Array.from(new Set(rowsExcludingFilter(col.key).map((a) => col.display(a))));
+                  return (
+                    <th key={col.key} style={{ padding: '6px 8px', position: 'relative' }}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenCol(openCol === col.key ? null : col.key)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          font: 'inherit',
+                          fontWeight: 700,
+                          color: hasFilter ? 'var(--accent)' : 'inherit',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {col.label}
+                        {isSorted && <span style={{ fontSize: 10 }}>{sort.dir === 'asc' ? '▲' : '▼'}</span>}
+                        <span style={{ fontSize: 10, opacity: hasFilter ? 1 : 0.4 }}>▾</span>
+                      </button>
+                      {openCol === col.key && (
+                        <ColumnFilterMenu
+                          column={col}
+                          options={options}
+                          selected={colFilters[col.key] || null}
+                          activeSort={sort}
+                          onSort={(dir) => setSort({ key: col.key, dir })}
+                          onApply={(newSet) =>
+                            setColFilters((prev) => {
+                              const next = { ...prev };
+                              if (newSet) next[col.key] = newSet;
+                              else delete next[col.key];
+                              return next;
+                            })
+                          }
+                          onClose={() => setOpenCol(null)}
+                        />
+                      )}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -205,6 +405,11 @@ export default function AdminDashboardClient({ initialAttempts }) {
             </tbody>
           </table>
         </div>
+        {filtered.length > 300 && (
+          <div className="small-note" style={{ marginTop: 8 }}>
+            최신 300건만 표시돼요 (필터로 범위를 좁혀보세요).
+          </div>
+        )}
       </div>
     </div>
   );

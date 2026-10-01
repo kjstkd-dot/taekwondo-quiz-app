@@ -22,7 +22,7 @@ export default function QuizSelectPage() {
               {d.ko[0]}
             </span>
             <span className="body">
-              <span className="ttl">{d.ko} 규칙</span>
+              <span className="ttl">{d.ko} 경기 규칙</span>
               <span className="desc">문제은행 {d.bank.length}문항 중 랜덤 20문 · 객관식</span>
             </span>
             <span className="chev">›</span>

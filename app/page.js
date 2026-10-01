@@ -29,12 +29,12 @@ export default async function HomePage() {
           <h1>
             겨루기 · 품새 · 격파
             <br />
-            세 종목의 규칙을 한 곳에서
+            세 종목의 경기 규칙을 한 곳에서
           </h1>
           <p>
             {session
-              ? `${studentName}님, 환영합니다. 규칙 퀴즈로 점검하고, 매 수업 성찰노트를 남기고, 내 결과에서 점수 기록을 확인하세요.`
-              : '학번으로 로그인하면 규칙 퀴즈를 풀고 내 점수 기록을 확인할 수 있어요.'}
+              ? `${studentName}님, 환영합니다. 경기 규칙 퀴즈로 점검하고, 매 수업 성찰노트를 남기고, 내 결과에서 점수 기록을 확인하세요.`
+              : '학번으로 로그인하면 경기 규칙 퀴즈를 풀고 내 점수 기록을 확인할 수 있어요.'}
           </p>
           <div className="disc-legend">
             <span className="pill gyeorugi">겨루기</span>
@@ -67,7 +67,7 @@ export default async function HomePage() {
           규
         </span>
         <span className="body">
-          <span className="ttl">규칙 퀴즈</span>
+          <span className="ttl">경기 규칙 퀴즈</span>
           <span className="desc">겨루기·품새·격파 — 종목별 300문항 이상 은행에서 매번 새로운 20문제</span>
         </span>
         <span className="chev">›</span>

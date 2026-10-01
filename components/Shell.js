@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 const EXTERNAL_NOTES_URL = 'https://class-reflection-kjs.kjstkd.chatgpt.site/';
 
 function titleFor(pathname) {
-  if (pathname.startsWith('/quiz')) return '규칙 퀴즈';
+  if (pathname.startsWith('/quiz')) return '경기 규칙 퀴즈';
   if (pathname.startsWith('/my-results')) return '내 결과';
   if (pathname.startsWith('/admin')) return '관리자';
   if (pathname.startsWith('/login')) return '학생 로그인';

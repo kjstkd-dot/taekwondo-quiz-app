@@ -3,7 +3,7 @@ import Shell from '../components/Shell';
 
 const SITE_URL = 'https://taekwondo-quiz-app.vercel.app';
 const SITE_TITLE = '태권도경기규칙및심판법';
-const SITE_DESCRIPTION = '겨루기·품새·격파 규칙 퀴즈, 성찰노트, 내 결과 확인';
+const SITE_DESCRIPTION = '겨루기·품새·격파 경기 규칙 퀴즈, 성찰노트, 내 결과 확인';
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),

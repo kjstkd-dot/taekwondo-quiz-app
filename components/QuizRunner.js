@@ -75,7 +75,7 @@ export default function QuizRunner({ disciplineKey, disciplineKo, disciplineEn, 
         <>
           <div className="quiz-head">
             <div className="eyebrow">TAEKWONDO · {disciplineEn}</div>
-            <h2>{disciplineKo} 규칙 퀴즈</h2>
+            <h2>{disciplineKo} 경기 규칙 퀴즈</h2>
             <div className="sub">문제은행 {bankSize}문항 중 랜덤 20문항</div>
           </div>
           <div className="card">
