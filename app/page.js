@@ -23,22 +23,24 @@ export default async function HomePage() {
 
   return (
     <div>
-      <div className="hero">
-        <div className="eyebrow">2026 태권도경기규칙및심판법</div>
-        <h1>
-          겨루기 · 품새 · 격파
-          <br />
-          세 종목의 규칙을 한 곳에서
-        </h1>
-        <p>
-          {session
-            ? `${studentName}님, 환영합니다. 규칙 퀴즈로 점검하고, 매 수업 성찰노트를 남기고, 내 결과에서 점수 기록을 확인하세요.`
-            : '학번으로 로그인하면 규칙 퀴즈를 풀고 내 점수 기록을 확인할 수 있어요.'}
-        </p>
-        <div className="disc-legend">
-          <span className="pill gyeorugi">겨루기</span>
-          <span className="pill pumsae">품새</span>
-          <span className="pill gyeokpa">격파</span>
+      <div className="hero hero-cover">
+        <div className="content">
+          <div className="eyebrow">2026 태권도경기규칙및심판법</div>
+          <h1>
+            겨루기 · 품새 · 격파
+            <br />
+            세 종목의 규칙을 한 곳에서
+          </h1>
+          <p>
+            {session
+              ? `${studentName}님, 환영합니다. 규칙 퀴즈로 점검하고, 매 수업 성찰노트를 남기고, 내 결과에서 점수 기록을 확인하세요.`
+              : '학번으로 로그인하면 규칙 퀴즈를 풀고 내 점수 기록을 확인할 수 있어요.'}
+          </p>
+          <div className="disc-legend">
+            <span className="pill gyeorugi">겨루기</span>
+            <span className="pill pumsae">품새</span>
+            <span className="pill gyeokpa">격파</span>
+          </div>
         </div>
       </div>
 
