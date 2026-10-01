@@ -35,13 +35,18 @@ export default async function HomePage() {
             ? `${studentName}님, 환영합니다. 규칙 퀴즈로 점검하고, 매 수업 성찰노트를 남기고, 내 결과에서 점수 기록을 확인하세요.`
             : '학번으로 로그인하면 규칙 퀴즈를 풀고 내 점수 기록을 확인할 수 있어요.'}
         </p>
+        <div className="disc-legend">
+          <span className="pill gyeorugi">겨루기</span>
+          <span className="pill pumsae">품새</span>
+          <span className="pill gyeokpa">격파</span>
+        </div>
       </div>
 
       <div className="section-label">바로가기</div>
 
       {!session && (
         <Link className="navcard" href="/login">
-          <span className="badge" style={{ background: '#1F7A4D' }}>
+          <span className="badge" style={{ background: 'var(--accent)' }}>
             로
           </span>
           <span className="body">
@@ -53,7 +58,10 @@ export default async function HomePage() {
       )}
 
       <Link className="navcard" href="/quiz">
-        <span className="badge" style={{ background: '#20232C' }}>
+        <span
+          className="badge"
+          style={{ background: 'linear-gradient(135deg,var(--c-gyeorugi),var(--c-pumsae),var(--c-gyeokpa))' }}
+        >
           규
         </span>
         <span className="body">
