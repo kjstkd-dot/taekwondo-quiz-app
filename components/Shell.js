@@ -10,6 +10,7 @@ function titleFor(pathname) {
   if (pathname.startsWith('/quiz')) return '경기 규칙 퀴즈';
   if (pathname.startsWith('/my-results')) return '내 결과';
   if (pathname.startsWith('/guide')) return '사용 안내';
+  if (pathname.startsWith('/scoring')) return '심판 채점실습';
   if (pathname.startsWith('/admin')) return '관리자';
   if (pathname.startsWith('/login')) return '학생 로그인';
   return '태권도경기규칙및심판법';
