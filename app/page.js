@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { STUDENT_COOKIE_NAME, verifyStudentToken } from '../lib/studentAuth';
 import { getSupabaseAdmin } from '../lib/supabaseAdmin';
+import { InstallCard, ShareCard } from '../components/PwaActions';
 
 const EXTERNAL_NOTES_URL = 'https://class-reflection-kjs.kjstkd.chatgpt.site/';
 
@@ -92,6 +93,22 @@ export default async function HomePage() {
         </span>
         <span className="chev">›</span>
       </Link>
+
+      <div className="section-label" style={{ marginTop: 32 }}>
+        도움말 · 설치 · 공유
+      </div>
+      <Link className="navcard" href="/guide">
+        <span className="badge" style={{ background: '#C99A3A' }}>
+          안
+        </span>
+        <span className="body">
+          <span className="ttl">사용 안내</span>
+          <span className="desc">화면 캡처로 보는 단계별 사용법</span>
+        </span>
+        <span className="chev">›</span>
+      </Link>
+      <InstallCard />
+      <ShareCard />
 
       <div className="section-label" style={{ marginTop: 32 }}>
         교수자

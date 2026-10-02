@@ -5,10 +5,22 @@ const SITE_URL = 'https://taekwondo-quiz-app.vercel.app';
 const SITE_TITLE = '태권도경기규칙및심판법';
 const SITE_DESCRIPTION = '겨루기·품새·격파 경기 규칙 퀴즈, 성찰노트, 내 결과 확인';
 
+export const viewport = {
+  themeColor: '#1447E6',
+};
+
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
+  manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: '/icon-192.png',
+  },
   openGraph: {
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
