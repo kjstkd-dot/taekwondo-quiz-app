@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import TutorChat from './TutorChat';
 
 export default function QuizRunner({ disciplineKey, disciplineKo, disciplineEn, bankSize, questions, studentId, studentName }) {
   const router = useRouter();
@@ -154,6 +155,12 @@ export default function QuizRunner({ disciplineKey, disciplineKo, disciplineEn, 
                     <br />
                     {q.note}
                   </div>
+                  <TutorChat
+                    discipline={disciplineKey}
+                    question={q.q}
+                    myAnswer={my !== null ? q.c[my] : ''}
+                    isCorrect={ok}
+                  />
                 </div>
               );
             })}
