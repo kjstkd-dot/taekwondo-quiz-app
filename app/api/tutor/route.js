@@ -5,7 +5,49 @@ import { STUDENT_COOKIE_NAME, verifyStudentToken } from '../../../lib/studentAut
 
 export const dynamic = 'force-dynamic';
 
-const MODEL = process.env.TUTOR_MODEL || 'claude-haiku-4-5-20251001';
+const GEMINI_KEY = process.env.GEMINI_API_KEY;
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+const USE_GEMINI = !!GEMINI_KEY;
+const MODEL = process.env.TUTOR_MODEL || (USE_GEMINI ? 'gemini-2.5-flash' : 'claude-haiku-4-5-20251001');
+
+async function callGemini(system, messages) {
+  const body = {
+    systemInstruction: { parts: [{ text: system }] },
+    contents: messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
+    generationConfig: { maxOutputTokens: 800, temperature: 0.3 },
+  };
+  if (MODEL.startsWith('gemini-2.5')) body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    console.error('gemini upstream error', res.status, await res.text().catch(() => ''));
+    return null;
+  }
+  const data = await res.json();
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  return parts.map((p) => p.text || '').join('\n').trim();
+}
+
+async function callAnthropic(system, messages) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: MODEL, max_tokens: 500, system, messages }),
+  });
+  if (!res.ok) {
+    console.error('anthropic upstream error', res.status, await res.text().catch(() => ''));
+    return null;
+  }
+  const data = await res.json();
+  return (data.content || [])
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text)
+    .join('\n')
+    .trim();
+}
 const HOURLY_LIMIT = 40;
 const MAX_MESSAGES = 8;
 const MAX_CONTENT = 400;
@@ -51,8 +93,7 @@ export async function POST(request) {
   const session = verifyStudentToken(token);
   if (!session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: 'not_configured' }, { status: 503 });
+  if (!GEMINI_KEY && !ANTHROPIC_KEY) return NextResponse.json({ error: 'not_configured' }, { status: 503 });
 
   let body;
   try {
@@ -85,30 +126,9 @@ export async function POST(request) {
   const myText = typeof myAnswer === 'string' ? myAnswer.slice(0, 300) : '';
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 500,
-        system: buildSystem(DISCIPLINES[discipline].ko, item, myText),
-        messages: clean,
-      }),
-    });
-    if (!res.ok) {
-      console.error('tutor upstream error', res.status, await res.text().catch(() => ''));
-      return NextResponse.json({ error: 'upstream_error' }, { status: 502 });
-    }
-    const data = await res.json();
-    const text = (data.content || [])
-      .filter((b) => b.type === 'text')
-      .map((b) => b.text)
-      .join('\n')
-      .trim();
+    const system = buildSystem(DISCIPLINES[discipline].ko, item, myText);
+    const text = USE_GEMINI ? await callGemini(system, clean) : await callAnthropic(system, clean);
+    if (text === null) return NextResponse.json({ error: 'upstream_error' }, { status: 502 });
     if (!text) return NextResponse.json({ error: 'empty' }, { status: 502 });
     return NextResponse.json({ reply: text });
   } catch (e) {
