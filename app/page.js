@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '../lib/supabaseAdmin';
 import { InstallCard, ShareCard } from '../components/PwaActions';
 
 const EXTERNAL_NOTES_URL = 'https://class-reflection-kjs.kjstkd.chatgpt.site/';
+const SCORING_URL = 'https://tkd-referee-lab.zhdtm040620.chatgpt.site';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,16 +74,16 @@ export default async function HomePage() {
         </span>
         <span className="chev">›</span>
       </Link>
-      <Link className="navcard" href="/scoring">
+      <a className="navcard" href={SCORING_URL} target="_blank" rel="noopener noreferrer">
         <span className="badge" style={{ background: '#146C6C' }}>
           심
         </span>
         <span className="body">
           <span className="ttl">심판 채점실습</span>
-          <span className="desc">실전 경기 영상으로 심판 채점을 연습해요 (준비 중)</span>
+          <span className="desc">학생이 개발한 심판 채점 실습 도구로 이동 (새 창)</span>
         </span>
         <span className="chev">›</span>
-      </Link>
+      </a>
       <a className="navcard" href={EXTERNAL_NOTES_URL} target="_blank" rel="noopener noreferrer">
         <span className="badge" style={{ background: 'var(--gold-ink)' }}>
           노
