@@ -184,7 +184,38 @@ function formatShort(date) {
   return `${date.getMonth() + 1}/${date.getDate()} ${p(date.getHours())}:${p(date.getMinutes())}`;
 }
 
+function RoundTooltip({ active, payload }) {
+  if (!active || !payload || !payload.length) return null;
+  const row = payload[0].payload;
+  return (
+    <div
+      style={{
+        background: 'var(--surface)',
+        color: 'var(--text)',
+        border: '1px solid var(--border)',
+        borderRadius: 8,
+        padding: '8px 10px',
+        fontSize: 12,
+        lineHeight: 1.6,
+      }}
+    >
+      <div style={{ fontWeight: 700 }}>{row.n}회차</div>
+      {DISCIPLINE_KEYS.map((key) => {
+        const a = row[`${key}_attempt`];
+        if (!a) return null;
+        return (
+          <div key={key} style={{ color: COLORS[key] }}>
+            {DISCIPLINES[key].ko} {a.score}/{a.total} ({a.percentage}%) · {formatShort(new Date(a.created_at))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function StudentTrendModal({ student, attempts, onClose }) {
+  const [disc, setDisc] = useState(null);
+
   const mine = useMemo(
     () =>
       attempts
@@ -201,14 +232,28 @@ function StudentTrendModal({ student, attempts, onClose }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const data = mine.map((a, i) => ({
-    n: i,
-    label: formatShort(new Date(a.created_at)),
-    [a.discipline]: a.percentage,
-  }));
+  const byDisc = useMemo(() => {
+    const map = {};
+    for (const key of DISCIPLINE_KEYS) map[key] = mine.filter((a) => a.discipline === key);
+    return map;
+  }, [mine]);
+
+  const visibleKeys = disc ? [disc] : DISCIPLINE_KEYS;
+  const rounds = Math.max(1, ...visibleKeys.map((k) => byDisc[k].length));
+  const data = Array.from({ length: rounds }, (_, i) => {
+    const row = { n: i + 1 };
+    for (const key of visibleKeys) {
+      const a = byDisc[key][i];
+      if (a) {
+        row[key] = a.percentage;
+        row[`${key}_attempt`] = a;
+      }
+    }
+    return row;
+  });
 
   const stats = DISCIPLINE_KEYS.map((key) => {
-    const list = mine.filter((a) => a.discipline === key);
+    const list = byDisc[key];
     return {
       key,
       count: list.length,
@@ -217,6 +262,11 @@ function StudentTrendModal({ student, attempts, onClose }) {
       latest: list.length ? list[list.length - 1].percentage : null,
     };
   });
+
+  const records = (disc ? byDisc[disc] : mine).map((a) => ({
+    ...a,
+    round: byDisc[a.discipline].indexOf(a) + 1,
+  }));
 
   return (
     <div
@@ -260,68 +310,87 @@ function StudentTrendModal({ student, attempts, onClose }) {
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
-          {stats.map((s) => (
-            <div
-              key={s.key}
-              style={{
-                border: '1px solid var(--border)',
-                borderTop: `3px solid ${COLORS[s.key]}`,
-                borderRadius: 10,
-                padding: '8px 10px',
-                fontSize: 12,
-              }}
-            >
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>{DISCIPLINES[s.key].ko}</div>
-              {s.count ? (
-                <div style={{ color: 'var(--text-mute)', lineHeight: 1.6 }}>
-                  {s.count}회 응시
-                  <br />
-                  최고 {s.best}% · 평균 {s.avg}%
-                  <br />
-                  최근 {s.latest}%
-                </div>
-              ) : (
-                <div style={{ color: 'var(--text-mute)' }}>응시 전</div>
-              )}
-            </div>
-          ))}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 6 }}>
+          {stats.map((s) => {
+            const selected = disc === s.key;
+            return (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => setDisc(selected ? null : s.key)}
+                aria-pressed={selected}
+                style={{
+                  textAlign: 'left',
+                  font: 'inherit',
+                  color: 'inherit',
+                  cursor: 'pointer',
+                  background: selected ? 'var(--surface-2)' : 'var(--surface)',
+                  border: `1.5px solid ${selected ? COLORS[s.key] : 'var(--border)'}`,
+                  borderTop: `3px solid ${COLORS[s.key]}`,
+                  borderRadius: 10,
+                  padding: '8px 10px',
+                  fontSize: 12,
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>{DISCIPLINES[s.key].ko}</div>
+                {s.count ? (
+                  <div style={{ color: 'var(--text-mute)', lineHeight: 1.6 }}>
+                    {s.count}회 응시
+                    <br />
+                    최고 {s.best}% · 평균 {s.avg}%
+                    <br />
+                    최근 {s.latest}%
+                  </div>
+                ) : (
+                  <div style={{ color: 'var(--text-mute)' }}>응시 전</div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 14 }}>
+          {disc ? '종목 카드를 다시 누르면 전체로 돌아가요.' : '종목 카드를 누르면 그 종목의 회차별 추이만 볼 수 있어요.'}
         </div>
 
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-mute)', marginBottom: 6 }}>
-          응시 순서별 정답률 추이
+          {disc ? `${DISCIPLINES[disc].ko} 회차별 정답률 추이` : '종목별 회차 정답률 추이'}
         </div>
         <div style={{ height: 240, marginBottom: 16 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: -16 }}>
+            <LineChart data={data} margin={{ top: 18, right: 20, bottom: 0, left: -16 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="n"
-                tick={{ fontSize: 10 }}
-                interval="preserveStartEnd"
-                tickFormatter={(n) => data[n]?.label || ''}
+                tick={{ fontSize: 11 }}
+                tickFormatter={(n) => `${n}회`}
+                interval={rounds > 12 ? 'preserveStartEnd' : 0}
+                padding={{ left: 12, right: 12 }}
               />
               <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
-              <Tooltip labelFormatter={(n) => data[n]?.label || ''} formatter={(v) => `${v}%`} />
+              <Tooltip content={<RoundTooltip />} />
               <Legend />
-              {DISCIPLINE_KEYS.map((key) => (
+              {visibleKeys.map((key) => (
                 <Line
                   key={key}
                   type="monotone"
                   dataKey={key}
                   name={DISCIPLINES[key].ko}
                   stroke={COLORS[key]}
+                  strokeWidth={2}
                   connectNulls
                   dot={{ r: 4 }}
+                  label={disc ? { position: 'top', fontSize: 11, formatter: (v) => `${v}%` } : false}
                 />
               ))}
             </LineChart>
           </ResponsiveContainer>
         </div>
 
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-mute)', marginBottom: 6 }}>응시 기록</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-mute)', marginBottom: 6 }}>
+          응시 기록{disc ? ` · ${DISCIPLINES[disc].ko}` : ''}
+        </div>
         <div>
-          {[...mine].reverse().map((a) => (
+          {[...records].reverse().map((a) => (
             <div
               key={a.id}
               style={{
@@ -335,7 +404,7 @@ function StudentTrendModal({ student, attempts, onClose }) {
             >
               <span>
                 <span style={{ color: COLORS[a.discipline], fontWeight: 700 }}>
-                  {DISCIPLINES[a.discipline]?.ko || a.discipline}
+                  {DISCIPLINES[a.discipline]?.ko || a.discipline} {a.round}회차
                 </span>{' '}
                 · {new Date(a.created_at).toLocaleString('ko-KR')}
               </span>
