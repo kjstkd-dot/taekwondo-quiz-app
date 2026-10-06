@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const USE_GEMINI = !!GEMINI_KEY;
-const MODEL = process.env.TUTOR_MODEL || (USE_GEMINI ? 'gemini-2.5-flash' : 'claude-haiku-4-5-20251001');
+const MODEL = process.env.TUTOR_MODEL || (USE_GEMINI ? 'gemini-3.8-flash' : 'claude-haiku-4-5-20251001');
 
 async function upstreamMessage(res) {
   const raw = await res.text().catch(() => '');
@@ -24,7 +24,7 @@ async function callGemini(system, messages) {
   const body = {
     systemInstruction: { parts: [{ text: system }] },
     contents: messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
-    generationConfig: { maxOutputTokens: 800, temperature: 0.3 },
+    generationConfig: { maxOutputTokens: 2000, temperature: 0.3 },
   };
   if (MODEL.startsWith('gemini-2.5')) body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
