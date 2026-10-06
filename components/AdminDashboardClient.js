@@ -179,6 +179,177 @@ function ColumnFilterMenu({ column, options, selected, onApply, onSort, activeSo
   );
 }
 
+function formatShort(date) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${date.getMonth() + 1}/${date.getDate()} ${p(date.getHours())}:${p(date.getMinutes())}`;
+}
+
+function StudentTrendModal({ student, attempts, onClose }) {
+  const mine = useMemo(
+    () =>
+      attempts
+        .filter((a) => a.student_id === student.sid)
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
+    [attempts, student.sid]
+  );
+
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const data = mine.map((a, i) => ({
+    n: i,
+    label: formatShort(new Date(a.created_at)),
+    [a.discipline]: a.percentage,
+  }));
+
+  const stats = DISCIPLINE_KEYS.map((key) => {
+    const list = mine.filter((a) => a.discipline === key);
+    return {
+      key,
+      count: list.length,
+      best: list.length ? Math.max(...list.map((a) => a.percentage)) : null,
+      avg: list.length ? Math.round(list.reduce((s, a) => s + a.percentage, 0) / list.length) : null,
+      latest: list.length ? list[list.length - 1].percentage : null,
+    };
+  });
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 100,
+        background: 'rgba(0,0,0,.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <div
+        role="dialog"
+        aria-label={`${student.name} 응시 추이`}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'var(--surface)',
+          color: 'var(--text)',
+          borderRadius: 16,
+          width: '100%',
+          maxWidth: 560,
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          padding: 20,
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 18, fontWeight: 800 }}>{student.name}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-mute)' }}>
+              학번 {student.sid} · 총 {mine.length}회 응시
+            </div>
+          </div>
+          <button type="button" className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }} onClick={onClose}>
+            닫기
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
+          {stats.map((s) => (
+            <div
+              key={s.key}
+              style={{
+                border: '1px solid var(--border)',
+                borderTop: `3px solid ${COLORS[s.key]}`,
+                borderRadius: 10,
+                padding: '8px 10px',
+                fontSize: 12,
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>{DISCIPLINES[s.key].ko}</div>
+              {s.count ? (
+                <div style={{ color: 'var(--text-mute)', lineHeight: 1.6 }}>
+                  {s.count}회 응시
+                  <br />
+                  최고 {s.best}% · 평균 {s.avg}%
+                  <br />
+                  최근 {s.latest}%
+                </div>
+              ) : (
+                <div style={{ color: 'var(--text-mute)' }}>응시 전</div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-mute)', marginBottom: 6 }}>
+          응시 순서별 정답률 추이
+        </div>
+        <div style={{ height: 240, marginBottom: 16 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: -16 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="n"
+                tick={{ fontSize: 10 }}
+                interval="preserveStartEnd"
+                tickFormatter={(n) => data[n]?.label || ''}
+              />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
+              <Tooltip labelFormatter={(n) => data[n]?.label || ''} formatter={(v) => `${v}%`} />
+              <Legend />
+              {DISCIPLINE_KEYS.map((key) => (
+                <Line
+                  key={key}
+                  type="monotone"
+                  dataKey={key}
+                  name={DISCIPLINES[key].ko}
+                  stroke={COLORS[key]}
+                  connectNulls
+                  dot={{ r: 4 }}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-mute)', marginBottom: 6 }}>응시 기록</div>
+        <div>
+          {[...mine].reverse().map((a) => (
+            <div
+              key={a.id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 8,
+                padding: '7px 0',
+                borderBottom: '1px solid var(--border)',
+                fontSize: 13,
+              }}
+            >
+              <span>
+                <span style={{ color: COLORS[a.discipline], fontWeight: 700 }}>
+                  {DISCIPLINES[a.discipline]?.ko || a.discipline}
+                </span>{' '}
+                · {new Date(a.created_at).toLocaleString('ko-KR')}
+              </span>
+              <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                {a.score}/{a.total} ({a.percentage}%)
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const STUDENT_COLUMNS = [
   { key: 'name', label: '이름', display: (s) => s.name, sortValue: (s) => s.name },
   { key: 'sid', label: '학번', display: (s) => s.sid, sortValue: (s) => s.sid },
@@ -299,6 +470,7 @@ export default function AdminDashboardClient({ initialAttempts }) {
   const router = useRouter();
   const [attempts, setAttempts] = useState(initialAttempts || []);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedSid, setSelectedSid] = useState(null);
 
   async function refresh() {
     setRefreshing(true);
@@ -407,6 +579,9 @@ export default function AdminDashboardClient({ initialAttempts }) {
       <div className="section-label">
         학생별 요약 ({studentTable.visible.length}명 / 전체 {students.length}명)
       </div>
+      <div className="small-note" style={{ textAlign: 'left', margin: '0 0 8px' }}>
+        학생 행을 누르면 그 학생의 응시 추이를 볼 수 있어요.
+      </div>
       <div className="card" style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
@@ -414,8 +589,17 @@ export default function AdminDashboardClient({ initialAttempts }) {
           </thead>
           <tbody>
             {studentTable.visible.map((s) => (
-              <tr key={s.sid} style={{ borderBottom: '1px solid var(--border)' }}>
-                <td style={{ padding: '6px 8px' }}>{s.name}</td>
+              <tr
+                key={s.sid}
+                onClick={() => setSelectedSid(s.sid)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setSelectedSid(s.sid);
+                }}
+                tabIndex={0}
+                title="클릭하면 응시 추이를 볼 수 있어요"
+                style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+              >
+                <td style={{ padding: '6px 8px', fontWeight: 600 }}>{s.name}</td>
                 <td style={{ padding: '6px 8px' }}>{s.sid}</td>
                 {DISCIPLINE_KEYS.map((key) => (
                   <td key={key} style={{ padding: '6px 8px' }}>
@@ -465,6 +649,14 @@ export default function AdminDashboardClient({ initialAttempts }) {
           </div>
         )}
       </div>
+
+      {selectedSid && students.find((s) => s.sid === selectedSid) && (
+        <StudentTrendModal
+          student={students.find((s) => s.sid === selectedSid)}
+          attempts={attempts}
+          onClose={() => setSelectedSid(null)}
+        />
+      )}
     </div>
   );
 }
