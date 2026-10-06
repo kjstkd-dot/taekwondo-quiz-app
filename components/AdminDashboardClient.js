@@ -179,15 +179,126 @@ function ColumnFilterMenu({ column, options, selected, onApply, onSort, activeSo
   );
 }
 
+const STUDENT_COLUMNS = [
+  { key: 'name', label: '이름', display: (s) => s.name, sortValue: (s) => s.name },
+  { key: 'sid', label: '학번', display: (s) => s.sid, sortValue: (s) => s.sid },
+  ...DISCIPLINE_KEYS.map((d) => ({
+    key: d,
+    label: DISCIPLINES[d].ko,
+    display: (s) => (s.counts[d] ? `${s.counts[d]}회 · 최고 ${s.best[d]}%` : '-'),
+    sortValue: (s) => (s.counts[d] ? s.best[d] : -1),
+  })),
+];
+
+function useColumnTable(rows, columns, initialSort) {
+  const [colFilters, setColFilters] = useState({});
+  const [sort, setSort] = useState(initialSort);
+
+  const visible = useMemo(() => {
+    let out = rows.filter((r) =>
+      columns.every((c) => {
+        const f = colFilters[c.key];
+        return !f || f.has(c.display(r));
+      })
+    );
+    if (sort.key) {
+      const col = columns.find((c) => c.key === sort.key);
+      const dir = sort.dir === 'asc' ? 1 : -1;
+      out = [...out].sort((a, b) => {
+        const av = col.sortValue(a);
+        const bv = col.sortValue(b);
+        if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+        return String(av).localeCompare(String(bv), 'ko', { numeric: true }) * dir;
+      });
+    }
+    return out;
+  }, [rows, columns, colFilters, sort]);
+
+  return { rows, columns, colFilters, setColFilters, sort, setSort, visible };
+}
+
+function ColumnHeaderRow({ table }) {
+  const { rows, columns, colFilters, setColFilters, sort, setSort } = table;
+  const [openCol, setOpenCol] = useState(null);
+  const [openAnchor, setOpenAnchor] = useState(null);
+  const closeMenu = useCallback(() => setOpenCol(null), []);
+
+  function optionsFor(excludeKey) {
+    const base = rows.filter((r) =>
+      columns.every((c) => {
+        if (c.key === excludeKey) return true;
+        const f = colFilters[c.key];
+        return !f || f.has(c.display(r));
+      })
+    );
+    const col = columns.find((c) => c.key === excludeKey);
+    return Array.from(new Set(base.map((r) => col.display(r))));
+  }
+
+  return (
+    <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
+      {columns.map((col) => {
+        const hasFilter = !!colFilters[col.key];
+        const isSorted = sort.key === col.key;
+        return (
+          <th key={col.key} style={{ padding: '6px 8px', position: 'relative' }}>
+            <button
+              type="button"
+              onClick={(e) => {
+                if (openCol === col.key) {
+                  setOpenCol(null);
+                  return;
+                }
+                setOpenAnchor(e.currentTarget.getBoundingClientRect());
+                setOpenCol(col.key);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                font: 'inherit',
+                fontWeight: 700,
+                color: hasFilter ? 'var(--accent)' : 'inherit',
+                cursor: 'pointer',
+              }}
+            >
+              {col.label}
+              {isSorted && <span style={{ fontSize: 10 }}>{sort.dir === 'asc' ? '▲' : '▼'}</span>}
+              <span style={{ fontSize: 10, opacity: hasFilter ? 1 : 0.4 }}>▾</span>
+            </button>
+            {openCol === col.key && openAnchor && (
+              <ColumnFilterMenu
+                anchor={openAnchor}
+                column={col}
+                options={optionsFor(col.key)}
+                selected={colFilters[col.key] || null}
+                activeSort={sort}
+                onSort={(dir) => setSort({ key: col.key, dir })}
+                onApply={(newSet) =>
+                  setColFilters((prev) => {
+                    const next = { ...prev };
+                    if (newSet) next[col.key] = newSet;
+                    else delete next[col.key];
+                    return next;
+                  })
+                }
+                onClose={closeMenu}
+              />
+            )}
+          </th>
+        );
+      })}
+    </tr>
+  );
+}
+
 export default function AdminDashboardClient({ initialAttempts }) {
   const router = useRouter();
   const [attempts, setAttempts] = useState(initialAttempts || []);
   const [refreshing, setRefreshing] = useState(false);
-  const [colFilters, setColFilters] = useState({});
-  const [sort, setSort] = useState({ key: 'created_at', dir: 'desc' });
-  const [openCol, setOpenCol] = useState(null);
-  const [openAnchor, setOpenAnchor] = useState(null);
-  const closeMenu = useCallback(() => setOpenCol(null), []);
 
   async function refresh() {
     setRefreshing(true);
@@ -208,41 +319,6 @@ export default function AdminDashboardClient({ initialAttempts }) {
     await fetch('/api/admin/logout', { method: 'POST' });
     router.push('/admin');
   }
-
-  function rowsExcludingFilter(excludeKey) {
-    return attempts.filter((a) =>
-      LOG_COLUMNS.every((col) => {
-        if (col.key === excludeKey) return true;
-        const f = colFilters[col.key];
-        if (!f) return true;
-        return f.has(col.display(a));
-      })
-    );
-  }
-
-  const filtered = useMemo(() => {
-    let rows = attempts.filter((a) =>
-      LOG_COLUMNS.every((col) => {
-        const f = colFilters[col.key];
-        if (!f) return true;
-        return f.has(col.display(a));
-      })
-    );
-    if (sort.key) {
-      const col = LOG_COLUMNS.find((c) => c.key === sort.key);
-      rows = [...rows].sort((a, b) => {
-        const av = col.sortValue(a);
-        const bv = col.sortValue(b);
-        if (typeof av === 'number' && typeof bv === 'number') {
-          return sort.dir === 'asc' ? av - bv : bv - av;
-        }
-        return sort.dir === 'asc'
-          ? String(av).localeCompare(String(bv), 'ko')
-          : String(bv).localeCompare(String(av), 'ko');
-      });
-    }
-    return rows;
-  }, [attempts, colFilters, sort]);
 
   const totalAttempts = attempts.length;
   const uniqueStudents = new Set(attempts.map((a) => a.student_id)).size;
@@ -282,8 +358,12 @@ export default function AdminDashboardClient({ initialAttempts }) {
         map[sid].best[a.discipline] = a.percentage;
       }
     }
-    return Object.values(map).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    return Object.values(map);
   }, [attempts]);
+
+  const logTable = useColumnTable(attempts, LOG_COLUMNS, { key: 'created_at', dir: 'desc' });
+  const studentTable = useColumnTable(students, STUDENT_COLUMNS, { key: 'name', dir: 'asc' });
+  const filtered = logTable.visible;
 
   return (
     <div>
@@ -324,20 +404,16 @@ export default function AdminDashboardClient({ initialAttempts }) {
         )}
       </div>
 
-      <div className="section-label">학생별 요약 ({students.length}명)</div>
+      <div className="section-label">
+        학생별 요약 ({studentTable.visible.length}명 / 전체 {students.length}명)
+      </div>
       <div className="card" style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
-              <th style={{ padding: '6px 8px' }}>이름</th>
-              <th style={{ padding: '6px 8px' }}>학번</th>
-              <th style={{ padding: '6px 8px' }}>겨루기</th>
-              <th style={{ padding: '6px 8px' }}>품새</th>
-              <th style={{ padding: '6px 8px' }}>격파</th>
-            </tr>
+            <ColumnHeaderRow table={studentTable} />
           </thead>
           <tbody>
-            {students.map((s) => (
+            {studentTable.visible.map((s) => (
               <tr key={s.sid} style={{ borderBottom: '1px solid var(--border)' }}>
                 <td style={{ padding: '6px 8px' }}>{s.name}</td>
                 <td style={{ padding: '6px 8px' }}>{s.sid}</td>
@@ -357,63 +433,7 @@ export default function AdminDashboardClient({ initialAttempts }) {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
-                {LOG_COLUMNS.map((col) => {
-                  const hasFilter = !!colFilters[col.key];
-                  const isSorted = sort.key === col.key;
-                  const options = Array.from(new Set(rowsExcludingFilter(col.key).map((a) => col.display(a))));
-                  return (
-                    <th key={col.key} style={{ padding: '6px 8px', position: 'relative' }}>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          if (openCol === col.key) {
-                            setOpenCol(null);
-                            return;
-                          }
-                          setOpenAnchor(e.currentTarget.getBoundingClientRect());
-                          setOpenCol(col.key);
-                        }}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          background: 'none',
-                          border: 'none',
-                          padding: 0,
-                          font: 'inherit',
-                          fontWeight: 700,
-                          color: hasFilter ? 'var(--accent)' : 'inherit',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {col.label}
-                        {isSorted && <span style={{ fontSize: 10 }}>{sort.dir === 'asc' ? '▲' : '▼'}</span>}
-                        <span style={{ fontSize: 10, opacity: hasFilter ? 1 : 0.4 }}>▾</span>
-                      </button>
-                      {openCol === col.key && openAnchor && (
-                        <ColumnFilterMenu
-                          anchor={openAnchor}
-                          column={col}
-                          options={options}
-                          selected={colFilters[col.key] || null}
-                          activeSort={sort}
-                          onSort={(dir) => setSort({ key: col.key, dir })}
-                          onApply={(newSet) =>
-                            setColFilters((prev) => {
-                              const next = { ...prev };
-                              if (newSet) next[col.key] = newSet;
-                              else delete next[col.key];
-                              return next;
-                            })
-                          }
-                          onClose={closeMenu}
-                        />
-                      )}
-                    </th>
-                  );
-                })}
-              </tr>
+              <ColumnHeaderRow table={logTable} />
             </thead>
             <tbody>
               {filtered.slice(0, 300).map((a) => (
