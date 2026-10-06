@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { DISCIPLINES, DISCIPLINE_KEYS } from '../lib/disciplines';
@@ -30,9 +30,30 @@ const LOG_COLUMNS = [
   },
 ];
 
-function ColumnFilterMenu({ column, options, selected, onApply, onSort, activeSort, onClose }) {
+const MENU_WIDTH = 220;
+const MENU_HEIGHT = 340;
+
+function ColumnFilterMenu({ column, options, selected, onApply, onSort, activeSort, onClose, anchor }) {
   const [search, setSearch] = useState('');
   const [temp, setTemp] = useState(selected || new Set(options));
+
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    function onScroll(e) {
+      if (menuRef.current && menuRef.current.contains(e.target)) return;
+      onClose();
+    }
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onClose);
+    return () => {
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onClose);
+    };
+  }, [onClose]);
+
+  const left = Math.max(8, Math.min(anchor.left, window.innerWidth - MENU_WIDTH - 8));
+  const top = Math.max(8, Math.min(anchor.bottom + 4, window.innerHeight - MENU_HEIGHT - 8));
 
   const visibleOptions = options.filter((o) => o.toLowerCase().includes(search.trim().toLowerCase()));
   const allVisibleChecked = visibleOptions.length > 0 && visibleOptions.every((o) => temp.has(o));
@@ -61,17 +82,20 @@ function ColumnFilterMenu({ column, options, selected, onApply, onSort, activeSo
         style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'transparent' }}
       />
       <div
+        ref={menuRef}
         style={{
-          position: 'absolute',
-          top: '100%',
-          left: 0,
-          marginTop: 4,
+          position: 'fixed',
+          top,
+          left,
           zIndex: 50,
           background: 'var(--surface)',
           border: '1px solid var(--border)',
           borderRadius: 10,
           boxShadow: '0 12px 28px -12px rgba(0,0,0,.35)',
-          width: 220,
+          width: MENU_WIDTH,
+          maxHeight: MENU_HEIGHT,
+          overflowY: 'auto',
+          boxSizing: 'border-box',
           padding: 10,
         }}
         onClick={(e) => e.stopPropagation()}
@@ -162,6 +186,8 @@ export default function AdminDashboardClient({ initialAttempts }) {
   const [colFilters, setColFilters] = useState({});
   const [sort, setSort] = useState({ key: 'created_at', dir: 'desc' });
   const [openCol, setOpenCol] = useState(null);
+  const [openAnchor, setOpenAnchor] = useState(null);
+  const closeMenu = useCallback(() => setOpenCol(null), []);
 
   async function refresh() {
     setRefreshing(true);
@@ -340,7 +366,14 @@ export default function AdminDashboardClient({ initialAttempts }) {
                     <th key={col.key} style={{ padding: '6px 8px', position: 'relative' }}>
                       <button
                         type="button"
-                        onClick={() => setOpenCol(openCol === col.key ? null : col.key)}
+                        onClick={(e) => {
+                          if (openCol === col.key) {
+                            setOpenCol(null);
+                            return;
+                          }
+                          setOpenAnchor(e.currentTarget.getBoundingClientRect());
+                          setOpenCol(col.key);
+                        }}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -358,8 +391,9 @@ export default function AdminDashboardClient({ initialAttempts }) {
                         {isSorted && <span style={{ fontSize: 10 }}>{sort.dir === 'asc' ? '▲' : '▼'}</span>}
                         <span style={{ fontSize: 10, opacity: hasFilter ? 1 : 0.4 }}>▾</span>
                       </button>
-                      {openCol === col.key && (
+                      {openCol === col.key && openAnchor && (
                         <ColumnFilterMenu
+                          anchor={openAnchor}
                           column={col}
                           options={options}
                           selected={colFilters[col.key] || null}
@@ -373,7 +407,7 @@ export default function AdminDashboardClient({ initialAttempts }) {
                               return next;
                             })
                           }
-                          onClose={() => setOpenCol(null)}
+                          onClose={closeMenu}
                         />
                       )}
                     </th>
