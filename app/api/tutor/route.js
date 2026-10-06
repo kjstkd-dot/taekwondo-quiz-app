@@ -21,45 +21,76 @@ async function upstreamMessage(res) {
   return `${res.status} ${String(msg).slice(0, 160)}`;
 }
 
+let modelCache = { at: 0, list: [] };
+
+async function discoverModels() {
+  if (modelCache.list.length && Date.now() - modelCache.at < 10 * 60 * 1000) return modelCache.list;
+  try {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', {
+      headers: { 'x-goog-api-key': GEMINI_KEY },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const names = (data.models || [])
+      .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map((m) => String(m.name || '').replace(/^models\//, ''))
+      .filter((n) => /^gemini-.*flash/.test(n) && !/(image|tts|live|audio|embed|native|robotics|computer|vision|thinking)/i.test(n));
+    const rank = (n) => (/preview|exp/.test(n) ? 2 : 0) + (/lite/.test(n) ? 0 : 1);
+    names.sort((a, b) => rank(a) - rank(b) || b.localeCompare(a, 'en', { numeric: true }));
+    modelCache = { at: Date.now(), list: names };
+    return names;
+  } catch {
+    return [];
+  }
+}
+
 async function callGemini(system, messages) {
   const body = {
     systemInstruction: { parts: [{ text: system }] },
     contents: messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
     generationConfig: { maxOutputTokens: 2000, temperature: 0.3 },
   };
-  const models = [MODEL, process.env.TUTOR_FALLBACK_MODEL || 'gemini-flash-lite-latest'].filter((m, i, a) => a.indexOf(m) === i);
-  let lastError = null;
 
-  for (const model of models) {
+  const discovered = await discoverModels();
+  const candidates = [MODEL, process.env.TUTOR_FALLBACK_MODEL, ...discovered.slice(0, 5)]
+    .filter(Boolean)
+    .filter((m, i, a) => a.indexOf(m) === i);
+
+  const deadline = Date.now() + 22000;
+  const tried = [];
+  let lastMsg = '';
+
+  for (const model of candidates) {
+    const remaining = deadline - Date.now();
+    if (remaining < 3000) break;
     const cfg = { ...body.generationConfig };
     if (model.startsWith('gemini-2.5')) cfg.thinkingConfig = { thinkingBudget: 0 };
-    for (let attempt = 0; attempt < 2; attempt++) {
-      let res;
-      try {
-        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
-          body: JSON.stringify({ ...body, generationConfig: cfg }),
-          signal: AbortSignal.timeout(8000),
-        });
-      } catch (e) {
-        lastError = new Error(`timeout: ${model} 응답 지연`);
-        break;
-      }
-      if (res.ok) {
-        const data = await res.json();
-        const parts = data.candidates?.[0]?.content?.parts || [];
-        const out = parts.map((p) => p.text || '').join('\n').trim();
-        if (out) return out;
-        lastError = new Error(`empty: ${data.promptFeedback?.blockReason || data.candidates?.[0]?.finishReason || 'no text'}`);
-        break;
-      }
-      lastError = new Error(await upstreamMessage(res));
-      if (![500, 503, 504].includes(res.status)) break;
-      await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+    let res;
+    try {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
+        body: JSON.stringify({ ...body, generationConfig: cfg }),
+        signal: AbortSignal.timeout(Math.min(8000, remaining)),
+      });
+    } catch {
+      tried.push(`${model}:timeout`);
+      continue;
     }
+    if (res.ok) {
+      const data = await res.json();
+      const parts = data.candidates?.[0]?.content?.parts || [];
+      const out = parts.map((p) => p.text || '').join('\n').trim();
+      if (out) return out;
+      tried.push(`${model}:empty`);
+      continue;
+    }
+    lastMsg = await upstreamMessage(res);
+    tried.push(`${model}:${res.status}`);
+    if ([400, 401, 403].includes(res.status)) break;
   }
-  throw lastError || new Error('unknown error');
+  throw new Error(`${lastMsg.slice(0, 90)} [시도: ${tried.join(', ')}]`);
 }
 
 async function callAnthropic(system, messages) {
@@ -163,6 +194,6 @@ export async function POST(request) {
     return NextResponse.json({ reply: text });
   } catch (e) {
     console.error(e);
-    return NextResponse.json({ error: 'upstream_error', detail: String(e?.message || e).slice(0, 200) }, { status: 502 });
+    return NextResponse.json({ error: 'upstream_error', detail: String(e?.message || e).slice(0, 260) }, { status: 502 });
   }
 }
