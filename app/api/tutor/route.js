@@ -10,6 +10,16 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const USE_GEMINI = !!GEMINI_KEY;
 const MODEL = process.env.TUTOR_MODEL || (USE_GEMINI ? 'gemini-2.5-flash' : 'claude-haiku-4-5-20251001');
 
+async function upstreamMessage(res) {
+  const raw = await res.text().catch(() => '');
+  let msg = raw;
+  try {
+    msg = JSON.parse(raw).error?.message || raw;
+  } catch {}
+  console.error('tutor upstream error', res.status, raw);
+  return `${res.status} ${String(msg).slice(0, 160)}`;
+}
+
 async function callGemini(system, messages) {
   const body = {
     systemInstruction: { parts: [{ text: system }] },
@@ -23,12 +33,13 @@ async function callGemini(system, messages) {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    console.error('gemini upstream error', res.status, await res.text().catch(() => ''));
-    return null;
+    throw new Error(await upstreamMessage(res));
   }
   const data = await res.json();
   const parts = data.candidates?.[0]?.content?.parts || [];
-  return parts.map((p) => p.text || '').join('\n').trim();
+  const out = parts.map((p) => p.text || '').join('\n').trim();
+  if (!out) throw new Error(`empty: ${data.promptFeedback?.blockReason || data.candidates?.[0]?.finishReason || 'no text'}`);
+  return out;
 }
 
 async function callAnthropic(system, messages) {
@@ -38,8 +49,7 @@ async function callAnthropic(system, messages) {
     body: JSON.stringify({ model: MODEL, max_tokens: 500, system, messages }),
   });
   if (!res.ok) {
-    console.error('anthropic upstream error', res.status, await res.text().catch(() => ''));
-    return null;
+    throw new Error(await upstreamMessage(res));
   }
   const data = await res.json();
   return (data.content || [])
@@ -133,6 +143,6 @@ export async function POST(request) {
     return NextResponse.json({ reply: text });
   } catch (e) {
     console.error(e);
-    return NextResponse.json({ error: 'upstream_error' }, { status: 502 });
+    return NextResponse.json({ error: 'upstream_error', detail: String(e?.message || e).slice(0, 200) }, { status: 502 });
   }
 }
