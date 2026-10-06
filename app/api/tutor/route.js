@@ -26,20 +26,32 @@ async function callGemini(system, messages) {
     contents: messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
     generationConfig: { maxOutputTokens: 2000, temperature: 0.3 },
   };
-  if (MODEL.startsWith('gemini-2.5')) body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    throw new Error(await upstreamMessage(res));
+  const models = [MODEL, process.env.TUTOR_FALLBACK_MODEL || 'gemini-flash-latest'].filter((m, i, a) => a.indexOf(m) === i);
+  let lastError = null;
+
+  for (const model of models) {
+    const cfg = { ...body.generationConfig };
+    if (model.startsWith('gemini-2.5')) cfg.thinkingConfig = { thinkingBudget: 0 };
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
+        body: JSON.stringify({ ...body, generationConfig: cfg }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const parts = data.candidates?.[0]?.content?.parts || [];
+        const out = parts.map((p) => p.text || '').join('\n').trim();
+        if (out) return out;
+        lastError = new Error(`empty: ${data.promptFeedback?.blockReason || data.candidates?.[0]?.finishReason || 'no text'}`);
+        break;
+      }
+      lastError = new Error(await upstreamMessage(res));
+      if (![429, 500, 503, 504].includes(res.status)) break;
+      await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+    }
   }
-  const data = await res.json();
-  const parts = data.candidates?.[0]?.content?.parts || [];
-  const out = parts.map((p) => p.text || '').join('\n').trim();
-  if (!out) throw new Error(`empty: ${data.promptFeedback?.blockReason || data.candidates?.[0]?.finishReason || 'no text'}`);
-  return out;
+  throw lastError || new Error('unknown error');
 }
 
 async function callAnthropic(system, messages) {
