@@ -31,6 +31,10 @@ export default function TutorChat({ discipline, question, myAnswer, isCorrect })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (data.error === 'upstream_error' && /^429/.test(data.detail || '')) {
+          setError('오늘 AI 튜터 무료 사용량이 모두 소진됐어요. 잠시 후 또는 내일 다시 이용해주세요.');
+          return;
+        }
         const base = ERROR_TEXT[data.error] || 'AI 튜터 응답에 실패했어요. 잠시 후 다시 시도해주세요.';
         setError(data.detail ? `${base} (원인: ${data.detail})` : base);
         return;

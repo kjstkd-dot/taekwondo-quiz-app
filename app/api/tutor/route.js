@@ -26,7 +26,7 @@ async function callGemini(system, messages) {
     contents: messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
     generationConfig: { maxOutputTokens: 2000, temperature: 0.3 },
   };
-  const models = [MODEL, process.env.TUTOR_FALLBACK_MODEL || 'gemini-flash-latest'].filter((m, i, a) => a.indexOf(m) === i);
+  const models = [MODEL, process.env.TUTOR_FALLBACK_MODEL || 'gemini-flash-lite-latest'].filter((m, i, a) => a.indexOf(m) === i);
   let lastError = null;
 
   for (const model of models) {
@@ -47,7 +47,7 @@ async function callGemini(system, messages) {
         break;
       }
       lastError = new Error(await upstreamMessage(res));
-      if (![429, 500, 503, 504].includes(res.status)) break;
+      if (![500, 503, 504].includes(res.status)) break;
       await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
     }
   }
