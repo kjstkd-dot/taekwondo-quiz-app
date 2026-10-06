@@ -4,6 +4,7 @@ import { DISCIPLINES, DISCIPLINE_KEYS } from '../../../lib/disciplines';
 import { STUDENT_COOKIE_NAME, verifyStudentToken } from '../../../lib/studentAuth';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
@@ -32,12 +33,19 @@ async function callGemini(system, messages) {
   for (const model of models) {
     const cfg = { ...body.generationConfig };
     if (model.startsWith('gemini-2.5')) cfg.thinkingConfig = { thinkingBudget: 0 };
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
-        body: JSON.stringify({ ...body, generationConfig: cfg }),
-      });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let res;
+      try {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
+          body: JSON.stringify({ ...body, generationConfig: cfg }),
+          signal: AbortSignal.timeout(8000),
+        });
+      } catch (e) {
+        lastError = new Error(`timeout: ${model} 응답 지연`);
+        break;
+      }
       if (res.ok) {
         const data = await res.json();
         const parts = data.candidates?.[0]?.content?.parts || [];
