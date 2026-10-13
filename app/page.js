@@ -105,6 +105,17 @@ export default async function HomePage() {
         <span className="chev">›</span>
       </Link>
 
+      <Link className="navcard" href="/survey">
+        <span className="badge" style={{ background: '#B8541D' }}>
+          설
+        </span>
+        <span className="body">
+          <span className="ttl">설문하기</span>
+          <span className="desc">수업과 앱에 대한 의견을 들려주세요 (준비 중)</span>
+        </span>
+        <span className="chev">›</span>
+      </Link>
+
       <div className="section-label" style={{ marginTop: 32 }}>
         도움말 · 설치 · 공유
       </div>
